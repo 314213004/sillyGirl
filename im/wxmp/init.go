@@ -46,7 +46,7 @@ func init() {
 			ss := []string{}
 			url := ""
 			if len(end) == 0 {
-				ss = append(ss, "无法回复该消息")
+				ss = append(ss, "绑定或者录入京东账号请直接发送ck，或者发送 “二字”按提示操作。微信名下已绑定京东账号的可以发送“查询”以获取个人账号信息")
 			}
 			for _, item := range end {
 				switch item.(type) {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -105,23 +106,40 @@ func (sender *Sender) IsAdmin() bool {
 	case *message.PrivateMessage:
 		m := sender.Message.(*message.PrivateMessage)
 		sid = m.Sender.Uin
-		if m.Target == m.Sender.Uin {
-			return true
-		}
+		// if m.Target == m.Sender.Uin {
+		// 	return true
+		// }
 	case *message.TempMessage:
 		return false
 	case *message.GroupMessage:
 		m := sender.Message.(*message.GroupMessage)
 		sid = m.Sender.Uin
+		// if bot.Client.Uin == m.Sender.Uin {
+		// 	return true
+		// }
 	}
-	return strings.Contains(qq.Get("masters"), fmt.Sprint(sid))
+	id := fmt.Sprint(sid)
+
+	if id == qq.Get("bot_id") {
+		return true
+	}
+
+	for _, v := range regexp.MustCompile(`\d+`).FindAllString(qq.Get("masters"), -1) {
+		if id == v {
+			return true
+		}
+	}
+	return false
 }
 
 func (sender *Sender) IsMedia() bool {
 	return false
 }
 
+// var dd sync.Map
+
 func (sender *Sender) Reply(msgs ...interface{}) (int, error) {
+	var id int32
 	if spy_on := qq.Get("spy_on"); spy_on != "" && strings.Contains(spy_on, fmt.Sprint(sender.GetChatID())) {
 		return 0, nil
 	}
@@ -147,14 +165,14 @@ func (sender *Sender) Reply(msgs ...interface{}) (int, error) {
 		case core.ImageUrl:
 			data, err := httplib.Get(string(msg.(core.ImageUrl))).Bytes()
 			if err != nil {
-				sender.Reply(err)
+				// sender.Reply(err)
 				return 0, nil
 			} else {
-				bot.SendPrivateMessage(m.Sender.Uin, 0, &message.SendingMessage{Elements: []message.IMessageElement{&coolq.LocalImageElement{Stream: bytes.NewReader(data)}}})
+				id = bot.SendPrivateMessage(m.Sender.Uin, 0, &message.SendingMessage{Elements: []message.IMessageElement{&coolq.LocalImageElement{Stream: bytes.NewReader(data)}}})
 			}
 		}
 		if content != "" {
-			bot.SendPrivateMessage(m.Sender.Uin, 0, &message.SendingMessage{Elements: bot.ConvertStringMessage(content, false)})
+			id = bot.SendPrivateMessage(m.Sender.Uin, 0, &message.SendingMessage{Elements: bot.ConvertStringMessage(content, false)})
 		}
 	case *message.TempMessage:
 		m := sender.Message.(*message.TempMessage)
@@ -172,14 +190,14 @@ func (sender *Sender) Reply(msgs ...interface{}) (int, error) {
 				sender.Reply(err)
 				return 0, nil
 			} else {
-				bot.SendPrivateMessage(m.Sender.Uin, m.GroupCode, &message.SendingMessage{Elements: []message.IMessageElement{&coolq.LocalImageElement{Stream: bytes.NewReader(data)}}})
+				id = bot.SendPrivateMessage(m.Sender.Uin, m.GroupCode, &message.SendingMessage{Elements: []message.IMessageElement{&coolq.LocalImageElement{Stream: bytes.NewReader(data)}}})
 			}
 		}
 		if content != "" {
-			bot.SendPrivateMessage(m.Sender.Uin, m.GroupCode, &message.SendingMessage{Elements: bot.ConvertStringMessage(content, false)})
+			id = bot.SendPrivateMessage(m.Sender.Uin, m.GroupCode, &message.SendingMessage{Elements: bot.ConvertStringMessage(content, false)})
 		}
 	case *message.GroupMessage:
-		var id int32
+
 		m := sender.Message.(*message.GroupMessage)
 		content := ""
 		switch msg.(type) {
@@ -195,31 +213,39 @@ func (sender *Sender) Reply(msgs ...interface{}) (int, error) {
 				sender.Reply(err)
 				return 0, nil
 			} else {
-				id = bot.SendGroupMessage(m.GroupCode, &message.SendingMessage{Elements: []message.IMessageElement{&message.AtElement{Target: m.Sender.Uin}, &message.TextElement{Content: "\n"}, &coolq.LocalImageElement{Stream: bytes.NewReader(data)}}})
+				id = bot.SendGroupMessage(m.GroupCode, &message.SendingMessage{Elements: []message.IMessageElement{&message.AtElement{Target: m.Sender.Uin}, &message.TextElement{Content: " \n"}, &coolq.LocalImageElement{Stream: bytes.NewReader(data)}}})
 			}
 		}
 		if content != "" {
 			if strings.Contains(content, "\n") {
-				content = "\n" + content
+				content = " \n" + content
 			}
 			id = bot.SendGroupMessage(m.GroupCode, &message.SendingMessage{Elements: append([]message.IMessageElement{
 				&message.AtElement{Target: m.Sender.Uin}}, bot.ConvertStringMessage(content, true)...)}) //
 		}
-		if id > 0 && sender.Duration != nil {
-			if *sender.Duration != 0 {
-				go func() {
-					time.Sleep(*sender.Duration)
-					sender.Delete()
-					MSG := bot.GetMessage(id)
-					bot.Client.RecallGroupMessage(m.GroupCode, MSG["message-id"].(int32), MSG["internal-id"].(int32))
-				}()
-			} else {
-				sender.Delete()
-				MSG := bot.GetMessage(id)
-				bot.Client.RecallGroupMessage(m.GroupCode, MSG["message-id"].(int32), MSG["internal-id"].(int32))
-			}
 
-		}
+	}
+	if id > 0 {
+		// MSG := bot.GetMessage(id)
+		// dd.Store(MSG["internal-id"].(int32), true)
+		// logs.Debug("send id=%d message-id=%d internal-id=%d", id, MSG["message-id"].(int32), MSG["internal-id"].(int32))
+		// if m, ok := sender.Message.(*message.GroupMessage); ok {
+		// 	if sender.Duration != nil {
+		// 		if *sender.Duration != 0 {
+		// 			go func() {
+		// 				time.Sleep(*sender.Duration)
+		// 				sender.Delete()
+
+		// 				bot.Client.RecallGroupMessage(m.GroupCode, MSG["message-id"].(int32), MSG["internal-id"].(int32))
+		// 			}()
+		// 		} else {
+		// 			sender.Delete()
+
+		// 			bot.Client.RecallGroupMessage(m.GroupCode, MSG["message-id"].(int32), MSG["internal-id"].(int32))
+		// 		}
+
+		// 	}
+		// }
 	}
 	return 0, nil
 }
